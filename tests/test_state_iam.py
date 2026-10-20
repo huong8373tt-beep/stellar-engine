@@ -60,6 +60,7 @@ class TestStateIam(unittest.TestCase):
         self.assertEqual(b.member_id, "viewers")
 
     def test_get_bindings_with_prefix(self):
+        member = "serviceAccount:sa1@prefix-proj-1.iam.gserviceaccount.com"
         resources = [
             {
                 "type": "google_project_iam_member",
@@ -68,10 +69,7 @@ class TestStateIam(unittest.TestCase):
                         "attributes": {
                             "project": "prefix-proj-1",
                             "role": "roles/editor",
-                            "member": (
-                                "serviceAccount:sa1@prefix-proj-1."
-                                "iam.gserviceaccount.com"
-                            ),
+                            "member": member,
                             "condition": [],
                         }
                     }
@@ -85,16 +83,14 @@ class TestStateIam(unittest.TestCase):
         self.assertEqual(b.resource_id, "proj-1")
 
     def test_get_bindings_multi_underscore_resource_type(self):
+        key_id = "projects/p1/locations/us/keyRings/kr1/cryptoKeys/k1"
         resources = [
             {
                 "type": "google_kms_crypto_key_iam_member",
                 "instances": [
                     {
                         "attributes": {
-                            "crypto_key_id": (
-                                "projects/p1/locations/us/keyRings/kr1/"
-                                "cryptoKeys/k1"
-                            ),
+                            "crypto_key_id": key_id,
                             "role": (
                                 "roles/cloudkms.cryptoKeyEncrypterDecrypter"
                             ),
@@ -110,6 +106,33 @@ class TestStateIam(unittest.TestCase):
         bindings = list(state_iam.get_bindings(resources))
         self.assertEqual(len(bindings), 1)
         self.assertEqual(bindings[0].resource_type, "kms_crypto_key")
+
+    def test_get_folders_resolves_parent_child_names(self):
+        resources = [
+            {
+                "type": "google_folder",
+                "instances": [
+                    {
+                        "attributes": {
+                            "id": "folders/1",
+                            "display_name": "Root",
+                            "parent": "organizations/111",
+                        }
+                    },
+                    {
+                        "attributes": {
+                            "id": "folders/2",
+                            "display_name": "Sub",
+                            "parent": "folders/1",
+                        }
+                    },
+                ],
+            }
+        ]
+        self.assertEqual(
+            dict(state_iam.get_folders(resources)),
+            {"folders/1": "Root", "folders/2": "Root/Sub"},
+        )
 
 
 if __name__ == "__main__":

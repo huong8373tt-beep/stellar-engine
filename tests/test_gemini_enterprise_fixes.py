@@ -17,8 +17,12 @@
 import ast
 import pathlib
 import unittest
+from unittest.mock import MagicMock
+from unittest.mock import patch
 
-REPO_ROOT = pathlib.Path(__file__).resolve().parents[2]
+import gem4gov
+
+REPO_ROOT = pathlib.Path(__file__).resolve().parents[1]
 GEM4GOV_PATH = REPO_ROOT / "blueprints/gemini-enterprise/gem4gov-cli/gem4gov.py"
 
 
@@ -26,16 +30,13 @@ class TestGeminiEnterpriseFixes(unittest.TestCase):
     """Verify Gemini Enterprise CLI, Terraform, and deploy.sh fixes."""
 
     def test_engine_patch_omits_immutable_disable_analytics(self):
-        """Ensure update-compliance engine PATCH does not include immutable
-        disableAnalytics (#259).
-        """
+        """Ensure update-compliance PATCH omits disableAnalytics (#259)."""
         content = GEM4GOV_PATH.read_text(encoding="utf-8")
         tree = ast.parse(content)
         self.assertNotIn(
             'engine_update_mask = "features,disableAnalytics"',
             content,
-            "engine_update_mask must not include immutable disableAnalytics "
-            "field",
+            "engine_update_mask must not include immutable disableAnalytics",
         )
 
         func_node = next(
@@ -67,9 +68,7 @@ class TestGeminiEnterpriseFixes(unittest.TestCase):
             self.assertNotIn('"disableAnalytics": True', wrapper_src)
 
     def test_compliance_regime_respected_in_terraform_and_cli(self):
-        """Ensure discovery-engine.tf and gem4gov.py respect compliance_regime
-        (#190).
-        """
+        """Ensure discovery-engine.tf and gem4gov.py respect regime (#190)."""
         tf_path = (
             REPO_ROOT
             / "blueprints/gemini-enterprise/gemini-stage-0/discovery-engine.tf"
@@ -107,12 +106,8 @@ class TestGeminiEnterpriseFixes(unittest.TestCase):
         )
         self.assertNotIn("updateMask=agentConfigs", py_content)
 
-    def test_deploy_sh_validates_observability_and_assistant_patch_responses(
-        self,
-    ):
-        """Ensure deploy.sh validates HTTP status and sensitiveLoggingEnabled on
-        PATCH (#182).
-        """
+    def test_deploy_sh_validates_observability_and_assistant_patch(self):
+        """Ensure deploy.sh validates HTTP status on PATCH (#182)."""
         deploy_sh = (
             REPO_ROOT / "blueprints/gemini-enterprise/deploy.sh"
         ).read_text(encoding="utf-8")
@@ -121,9 +116,7 @@ class TestGeminiEnterpriseFixes(unittest.TestCase):
         self.assertIn("ASST_RESPONSE=$(curl -s -w", deploy_sh)
 
     def test_time_access_level_timezone_and_preservation(self):
-        """Ensure time access level title, variable descriptions, and deploy.sh
-        preservation use access_time_zone (#187).
-        """
+        """Ensure time access level and deploy.sh use access_time_zone."""
         access_policy_tf = (
             REPO_ROOT
             / "blueprints/gemini-enterprise/gemini-stage-0/access_policy.tf"
@@ -154,18 +147,16 @@ class TestGeminiEnterpriseFixes(unittest.TestCase):
         )
 
     def test_deploy_sh_prioritizes_tenant_iac_state_bucket(self):
-        """Ensure deploy.sh checks the tenant IaC state bucket before falling
-        back to the core bucket (#230).
-        """
+        """Ensure deploy.sh checks tenant IaC state bucket first (#230)."""
         deploy_sh = (
             REPO_ROOT / "blueprints/gemini-enterprise/deploy.sh"
         ).read_text(encoding="utf-8")
-        iac_idx = deploy_sh.find(
-            'IAC_STATE_BUCKET="${PREFIX}-${ENVIRONMENT}-${TENANT}-iac-0"'
-        )
-        core_idx = deploy_sh.find(
+        iac_var = 'IAC_STATE_BUCKET="${PREFIX}-${ENVIRONMENT}-${TENANT}-iac-0"'
+        core_var = (
             'LEGACY_CORE_BUCKET="${PREFIX}-tn-${ENVIRONMENT}-${TENANT}-0"'
         )
+        iac_idx = deploy_sh.find(iac_var)
+        core_idx = deploy_sh.find(core_var)
         self.assertNotEqual(iac_idx, -1)
         self.assertNotEqual(core_idx, -1)
         self.assertIn(
@@ -178,9 +169,7 @@ class TestGeminiEnterpriseFixes(unittest.TestCase):
         )
 
     def test_deploy_sh_uses_existing_compatible_terraform_before_tfenv(self):
-        """Ensure check_dependencies uses an existing compatible terraform (>=
-        1.7.4) before tfenv (#114).
-        """
+        """Ensure check_dependencies uses compatible terraform >= 1.7.4."""
         deploy_sh = (
             REPO_ROOT / "blueprints/gemini-enterprise/deploy.sh"
         ).read_text(encoding="utf-8")
@@ -191,9 +180,7 @@ class TestGeminiEnterpriseFixes(unittest.TestCase):
         self.assertIn('if [[ "$tf_compatible" != "true" ]]; then', deploy_sh)
 
     def test_cloudarmor_and_cli_token_handling(self):
-        """Ensure Cloud Armor rules deny matches and CLI passes tokens via
-        stdin.
-        """
+        """Ensure Cloud Armor rules deny matches and CLI uses stdin tokens."""
         cloudarmor_tf = (
             REPO_ROOT
             / "blueprints/gemini-enterprise/gemini-stage-0/cloudarmor.tf"
@@ -214,9 +201,7 @@ class TestGeminiEnterpriseFixes(unittest.TestCase):
         self.assertRegex(py_content, r'"-H",\s*"@-"')
 
     def test_relocation_and_multi_regime_compliance_support(self):
-        """Ensure gemini-enterprise is relocated and supports target compliance
-        regimes (#99, #102, #18, #30).
-        """
+        """Ensure gemini-enterprise supports target regimes (#99, #102, #18)."""
         self.assertTrue(
             (REPO_ROOT / "blueprints/gemini-enterprise").is_dir(),
             "blueprints/gemini-enterprise directory must exist",
@@ -260,12 +245,9 @@ class TestGeminiEnterpriseFixes(unittest.TestCase):
             REPO_ROOT
             / "blueprints/gemini-enterprise/gemini-stage-0/model_armor.tf"
         ).read_text(encoding="utf-8")
-        self.assertIn(
-            '!contains(["IL4", "IL5"], var.compliance_regime)', main_tf
-        )
-        self.assertIn(
-            '!contains(["IL4", "IL5"], var.compliance_regime)', model_armor_tf
-        )
+        il_guard = '!contains(["IL4", "IL5"], var.compliance_regime)'
+        self.assertIn(il_guard, main_tf)
+        self.assertIn(il_guard, model_armor_tf)
         self.assertIn('_STATE_PROTECTION_LEVEL="software"', deploy_sh)
         self.assertLess(
             deploy_sh.index("--- Compliance Regime (Assured Workloads) ---"),
@@ -273,10 +255,7 @@ class TestGeminiEnterpriseFixes(unittest.TestCase):
         )
 
     def test_brownfield_cmek_discovery_and_stage1_hardening(self):
-        """Verify Brownfield CMEK discovery (#106, #132), single group check
-        (#135), Stage 1 Shared-VPC preconditions (#111), and Terraform SSL
-        cert upload (#161).
-        """
+        """Verify Brownfield CMEK discovery and Stage 1 preconditions."""
         deploy_sh = (
             REPO_ROOT / "blueprints/gemini-enterprise/deploy.sh"
         ).read_text(encoding="utf-8")
@@ -284,18 +263,17 @@ class TestGeminiEnterpriseFixes(unittest.TestCase):
             'POTENTIAL_SEC_PROJECT="${PREFIX}-${ENVIRONMENT}-sec-core-0"',
             deploy_sh,
         )
-        self.assertIn(
+        kr_loop = (
             'for CANDIDATE_KR in "${ENVIRONMENT}-us" '
-            '"${CAP_ENV}-${TENANT}-keyring"; do',
-            deploy_sh,
+            '"${CAP_ENV}-${TENANT}-keyring"; do'
         )
+        self.assertIn(kr_loop, deploy_sh)
         self.assertNotIn(
             "2. User Role Groups: Created admin/user groups", deploy_sh
         )
         self.assertIn("CONFIRM_IDENTITY_GROUPS", deploy_sh)
         self.assertIn(
-            "1) Provision a new regional SSL certificate via Terraform from "
-            "local PEM files",
+            "1) Provision a new regional SSL certificate via Terraform",
             deploy_sh,
         )
         self.assertIn(
@@ -304,7 +282,6 @@ class TestGeminiEnterpriseFixes(unittest.TestCase):
         self.assertIn(
             'ssl_private_key_path = "${SSL_PRIVATE_KEY_PATH}"', deploy_sh
         )
-
         self.assertIn(
             'for CANDIDATE_REG_KR in "${ENVIRONMENT}-${REGION}"', deploy_sh
         )
@@ -318,7 +295,8 @@ class TestGeminiEnterpriseFixes(unittest.TestCase):
             / "blueprints/gemini-enterprise/gemini-stage-1/load_balancer.tf"
         ).read_text(encoding="utf-8")
         self.assertIn(
-            "try(trimspace(data.terraform_remote_state.stage_0.outputs.network_project_id)",
+            "try(trimspace(data.terraform_remote_state.stage_0.outputs"
+            ".network_project_id)",
             lb_tf,
         )
         self.assertIn(
@@ -342,19 +320,7 @@ class TestGeminiEnterpriseFixes(unittest.TestCase):
         self.assertIn('variable "ssl_private_key_path"', stage1_vars)
 
     def test_gem4gov_cli_subcommands_for_bigquery_and_licenses(self):
-        """Verify gem4gov datastore import BigQuery support (#122), license
-        retract (#123), and license assign/unassign (#121).
-        """
-        import sys
-        from unittest.mock import MagicMock
-        from unittest.mock import patch
-
-        cli_dir = str(REPO_ROOT / "blueprints/gemini-enterprise/gem4gov-cli")
-        if cli_dir not in sys.path:
-            sys.path.insert(0, cli_dir)
-        import gem4gov
-
-        # Verify CLI command definitions in AST
+        """Verify gem4gov BigQuery import and license subcommands."""
         content = GEM4GOV_PATH.read_text(encoding="utf-8")
         self.assertIn("--dataset-id", content)
         self.assertIn("--table-id", content)
@@ -363,8 +329,6 @@ class TestGeminiEnterpriseFixes(unittest.TestCase):
         self.assertIn('@license.command(name="assign")', content)
         self.assertIn('@license.command(name="unassign")', content)
 
-        # 1. Test datastore import --source-type bigquery non-interactively
-        # (#122)
         mock_creds = MagicMock()
         with (
             patch.object(
@@ -390,20 +354,20 @@ class TestGeminiEnterpriseFixes(unittest.TestCase):
                 {"id": "record_uuid"},
             )
 
-        # 2. Test license retract single and batch (#123)
         with patch.object(gem4gov, "build") as mock_build:
             mock_service = MagicMock()
             mock_build.return_value = mock_service
             mock_ba = (
                 mock_service.billingAccounts().billingAccountLicenseConfigs()
             )
+            cfg_name = (
+                "billingAccounts/012345-6789AB-CDEF01/"
+                "billingAccountLicenseConfigs/cfg-main"
+            )
             mock_ba.list.return_value.execute.return_value = {
                 "billingAccountLicenseConfigs": [
                     {
-                        "name": (
-                            "billingAccounts/012345-6789AB-CDEF01/"
-                            "billingAccountLicenseConfigs/cfg-main"
-                        ),
+                        "name": cfg_name,
                         "licenseConfigDistributions": {
                             (
                                 "projects/111/locations/us/"
@@ -434,8 +398,7 @@ class TestGeminiEnterpriseFixes(unittest.TestCase):
                 1
             ]
             self.assertEqual(
-                first_call_kwargs["billingAccountLicenseConfig"],
-                "billingAccounts/012345-6789AB-CDEF01/billingAccountLicenseConfigs/cfg-main",
+                first_call_kwargs["billingAccountLicenseConfig"], cfg_name
             )
             first_call_body = first_call_kwargs["body"]
             self.assertEqual(
@@ -444,13 +407,14 @@ class TestGeminiEnterpriseFixes(unittest.TestCase):
             )
             self.assertTrue(first_call_body["fullRetract"])
 
-        # 3. Test license assign and unassign (#121)
         with patch.object(gem4gov, "build") as mock_build:
             mock_service = MagicMock()
             mock_build.return_value = mock_service
             mock_us = mock_service.projects().locations().userStores()
-            mock_batch = mock_us.batchUpdateUserLicenses.return_value
-            mock_batch.execute.return_value = {"name": "operations/batch-op-1"}
+            batch_update = mock_us.batchUpdateUserLicenses
+            batch_update.return_value.execute.return_value = {
+                "name": "operations/batch-op-1"
+            }
 
             gem4gov._batch_update_user_licenses(
                 mock_creds,

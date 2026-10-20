@@ -16,7 +16,7 @@ import pathlib
 import re
 import unittest
 
-_REPO_ROOT = pathlib.Path(__file__).resolve().parents[2]
+_REPO_ROOT = pathlib.Path(__file__).resolve().parents[1]
 _BOOTSTRAP_DIR = _REPO_ROOT / "fast/stages-aw/0-bootstrap"
 
 
@@ -73,8 +73,8 @@ class TestBootstrapLoggingOrder(unittest.TestCase):
         self.assertNotIn(
             "parameters = try(jsonencode(r.parameters), null)",
             org_tf,
-            "org_policies should not unconditionally jsonencode string "
-            "parameters",
+            "org_policies should not unconditionally jsonencode "
+            "string parameters",
         )
         self.assertIn(
             "try(r.parameters, null) != null",
@@ -103,7 +103,8 @@ class TestBootstrapLoggingOrder(unittest.TestCase):
             log_export_tf,
         )
         self.assertIn(
-            "data.google_logging_project_settings.log_export[0].kms_service_account_id",
+            "data.google_logging_project_settings.log_export[0]"
+            ".kms_service_account_id",
             kms_tf,
         )
 
@@ -123,8 +124,8 @@ class TestBootstrapLoggingOrder(unittest.TestCase):
         ):
             content = (_REPO_ROOT / rel_path).read_text(encoding="utf-8")
             self.assertIn(
-                "api.getAttribute('iam.googleapis.com/modifiedGrantsByRole', "
-                "[]).size() > 0",
+                "api.getAttribute('iam.googleapis.com/modifiedGrantsByRole',"
+                " []).size() > 0",
                 content,
             )
 

@@ -18,7 +18,7 @@ import subprocess
 import tempfile
 import unittest
 
-_REPO_ROOT = pathlib.Path(__file__).resolve().parents[2]
+_REPO_ROOT = pathlib.Path(__file__).resolve().parents[1]
 _STAGE_LINKS = _REPO_ROOT / "fast/stage-links.sh"
 
 

@@ -16,7 +16,7 @@ import pathlib
 import re
 import unittest
 
-_REPO_ROOT = pathlib.Path(__file__).resolve().parents[2]
+_REPO_ROOT = pathlib.Path(__file__).resolve().parents[1]
 _WORKFLOW_TEMPLATES = (
     _REPO_ROOT / "fast/stages-aw/0-bootstrap/templates/workflow-github.yaml",
     _REPO_ROOT / "fast/stages-aw/1-resman/templates/workflow-github.yaml",
@@ -45,8 +45,7 @@ class TestWorkflowTemplatesSecurity(unittest.TestCase):
                 self.assertIsNone(
                     _DIRECT_STEP_OUTPUT_IN_SCRIPT_RE.search(content),
                     "Step outputs must be passed via env rather than "
-                    "interpolated"
-                    " directly into github-script blocks.",
+                    "interpolated directly into github-script blocks.",
                 )
 
 

@@ -33,11 +33,15 @@ uv run --project "${REPO_ROOT}" --locked python -m unittest discover -s "${REPO_
 # 2. Shell Script Tests
 echo ""
 echo "==> [2/3] Running Shell Script Tests..."
-bash "${REPO_ROOT}/tests/scripts/run_shell_tests.sh"
+for test_file in "${REPO_ROOT}"/tests/test_*.sh; do
+  echo "=== Running $(basename "${test_file}") ==="
+  bash "${test_file}"
+done
 
-# 3. Python Code Quality / AST Unused Local Variable Check
+# 3. Python Code Quality / AST Unused Local Variable & Boilerplate Checks
 echo ""
-echo "==> [3/3] Verifying CodeQL py/unused-local-variable compliance..."
+echo "==> [3/3] Verifying CodeQL py/unused-local-variable and boilerplate compliance..."
+uv run --project "${REPO_ROOT}" --locked python "${REPO_ROOT}/tools/check_boilerplate.py" "${REPO_ROOT}/tests" "${REPO_ROOT}/tools"
 uv run --project "${REPO_ROOT}" --locked python -c "
 import ast
 import os

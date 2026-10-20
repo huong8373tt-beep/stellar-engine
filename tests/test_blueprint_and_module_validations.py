@@ -15,20 +15,17 @@
 """Tests for blueprint API enablement and module ID length preconditions."""
 
 import pathlib
+import re
 import unittest
 
-REPO_ROOT = pathlib.Path(__file__).resolve().parents[2]
+REPO_ROOT = pathlib.Path(__file__).resolve().parents[1]
 
 
 class TestBlueprintAndModuleValidations(unittest.TestCase):
-    """Verify API enablement in blueprints and 30-char ID preconditions in
-    modules.
-    """
+    """Verify API enablement in blueprints and 30-char ID preconditions."""
 
     def test_blueprints_enable_required_project_services(self):
-        """Ensure app-engine and postgresql blueprints enable required APIs
-        (#104).
-        """
+        """Ensure app-engine and postgresql blueprints enable APIs (#104)."""
         ae_tf = (
             REPO_ROOT / "blueprints/fedramp-high/app-engine/main.tf"
         ).read_text(encoding="utf-8")
@@ -44,9 +41,7 @@ class TestBlueprintAndModuleValidations(unittest.TestCase):
         self.assertIn("google_project_service.sqladmin", pg_tf)
 
     def test_modules_enforce_30_char_id_preconditions(self):
-        """Ensure project and iam-service-account modules enforce 30-character
-        ID preconditions (#228).
-        """
+        """Ensure project and iam-service-account enforce 30-char IDs (#228)."""
         proj_tf = (REPO_ROOT / "modules/project/main.tf").read_text(
             encoding="utf-8"
         )
@@ -70,9 +65,7 @@ class TestBlueprintAndModuleValidations(unittest.TestCase):
         )
 
     def _iter_terraform_dirs(self):
-        """Yield every directory under fast/, modules/, and blueprints/
-        containing .tf files.
-        """
+        """Yield every directory under fast/ and blueprints/ with .tf files."""
         seen = set()
         for root_name in ("fast", "blueprints"):
             base = REPO_ROOT / root_name
@@ -86,8 +79,6 @@ class TestBlueprintAndModuleValidations(unittest.TestCase):
 
     @staticmethod
     def _strip_comments_and_moved(text: str) -> str:
-        import re
-
         lines = []
         in_block = False
         for line in text.splitlines():
@@ -113,11 +104,7 @@ class TestBlueprintAndModuleValidations(unittest.TestCase):
     def test_all_terraform_dirs_have_valid_variable_and_resource_references(
         self,
     ):
-        """Ensure every Terraform directory declares all referenced vars,
-        resources, data sources, and modules.
-        """
-        import re
-
+        """Ensure every Terraform directory declares referenced symbols."""
         errors = []
         for tf_dir in sorted(self._iter_terraform_dirs()):
             rel_dir = tf_dir.relative_to(REPO_ROOT)
@@ -127,10 +114,9 @@ class TestBlueprintAndModuleValidations(unittest.TestCase):
             )
             cleaned = self._strip_comments_and_moved(raw_combined)
 
-            # Catch common HCL prefix typos like vvar. or lcoal.
-            for typo in re.findall(
-                r"\b(?:vvar|lcoal| moudle)\.[a-zA-Z0-9_-]+", cleaned
-            ):
+            # Catch common HCL prefix typos like vvar., lcoal., or moudle.
+            typo_re = r"\b(?:vvar|lcoal|moudle)\.[a-zA-Z0-9_-]+"
+            for typo in re.findall(typo_re, cleaned):
                 errors.append(f"{rel_dir}: suspicious typo reference '{typo}'")
 
             decl_vars = set(re.findall(r'variable\s+"([^"]+)"', raw_combined))
@@ -141,17 +127,17 @@ class TestBlueprintAndModuleValidations(unittest.TestCase):
                     f"{rel_dir}: undeclared var reference(s): {missing_vars}"
                 )
 
+            res_decl_re = r'resource\s+"([^"]+)"\s+"([^"]+)"'
             decl_res = {
                 f"{m.group(1)}.{m.group(2)}"
-                for m in re.finditer(
-                    r'resource\s+"([^"]+)"\s+"([^"]+)"', raw_combined
-                )
+                for m in re.finditer(res_decl_re, raw_combined)
             }
             ref_res = set()
-            for m in re.finditer(
-                r'(?<!\.)(?<!data\.)(?<!")\b(google_[a-zA-Z0-9_]+)\.([a-zA-Z0-9_-]+)\b',
-                cleaned,
-            ):
+            res_ref_re = (
+                r'(?<!\.)(?<!data\.)(?<!")\b'
+                r"(google_[a-zA-Z0-9_]+)\.([a-zA-Z0-9_-]+)\b"
+            )
+            for m in re.finditer(res_ref_re, cleaned):
                 prefix = cleaned[max(0, m.start() - 45) : m.start()]
                 if re.search(
                     r"module\.[a-zA-Z0-9_-]+(?:\[[^\]]+\])?\.$", prefix
@@ -219,11 +205,7 @@ class TestBlueprintAndModuleValidations(unittest.TestCase):
         )
 
     def test_no_invalid_sensitive_type_constructors_in_variables(self):
-        """Ensure variable type definitions do not use sensitive(...) as a type
-        constructor.
-        """
-        import re
-
+        """Ensure variable types do not use sensitive(...) constructor."""
         offenders = []
         for tf_dir in sorted(self._iter_terraform_dirs()):
             for tf_file in sorted(tf_dir.glob("*.tf")):
@@ -235,20 +217,17 @@ class TestBlueprintAndModuleValidations(unittest.TestCase):
         self.assertEqual(
             offenders,
             [],
-            "Invalid optional(sensitive(...)) type constructor in: "
+            f"Invalid optional(sensitive(...)) type constructor in: "
             f"{offenders}",
         )
 
     def test_all_blueprint_sample_tfvars_match_declared_variables(self):
-        """Ensure every blueprint terraform.tfvars.sample only sets declared
-        variables and covers required ones.
-        """
-        import re
-
+        """Ensure every blueprint terraform.tfvars.sample matches variables."""
         errors = []
-        for sample in sorted(
+        samples = sorted(
             REPO_ROOT.glob("blueprints/**/terraform.tfvars.sample")
-        ):
+        )
+        for sample in samples:
             bp_dir = sample.parent
             rel = bp_dir.relative_to(REPO_ROOT)
             raw_vars = "\n".join(
@@ -306,29 +285,26 @@ class TestBlueprintAndModuleValidations(unittest.TestCase):
                 )
             if missing_req:
                 errors.append(
-                    f"{rel}: missing required variable(s) in sample tfvars: "
+                    f"{rel}: missing required variable(s) in sample: "
                     f"{missing_req}"
                 )
 
         self.assertEqual(
             errors,
             [],
-            "Invalid blueprint terraform.tfvars.sample files:\n"
-            + "\n".join(errors),
+            "Invalid blueprint terraform.tfvars.sample:\n" + "\n".join(errors),
         )
 
     def test_custom_stellar_engine_modules_validations(self):
-        """Verify hardening and logic fixes across custom Stellar Engine
-        modules.
-        """
+        """Verify hardening and logic fixes across Stellar Engine modules."""
         alerts_main = (REPO_ROOT / "modules/cis-log-alerts/main.tf").read_text(
             encoding="utf-8"
         )
-        self.assertIn(
+        expected_concat = (
             "concat([google_monitoring_notification_channel.email.name], "
-            "var.notification_channels)",
-            alerts_main,
+            "var.notification_channels)"
         )
+        self.assertIn(expected_concat, alerts_main)
         self.assertIn("display_name = each.key", alerts_main)
         self.assertNotIn('display_name = "each.key"', alerts_main)
 

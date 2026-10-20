@@ -18,7 +18,7 @@ import re
 import tomllib
 import unittest
 
-_REPO_ROOT = pathlib.Path(__file__).resolve().parents[2]
+_REPO_ROOT = pathlib.Path(__file__).resolve().parents[1]
 _BARE_PYTHON_RE = re.compile(r"(?<![\w.-])python3?(?![\w.-])")
 _UV_PYTHON_RE = re.compile(r"uv run\b[^\n]*\bpython\b")
 

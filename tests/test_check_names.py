@@ -60,7 +60,7 @@ class TestCheckNames(unittest.TestCase):
         self.assertIn("no names found in missing", result.output)
 
     def test_lint_target_holds_names(self):
-        lint = pathlib.Path(__file__).resolve().parents[2] / "tools" / "lint.sh"
+        lint = pathlib.Path(__file__).resolve().parents[1] / "tools" / "lint.sh"
         line = next(
             text
             for text in lint.read_text().splitlines()

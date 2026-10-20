@@ -83,7 +83,7 @@ class TestLintSh(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        cls.repo_root = Path(__file__).resolve().parent.parent.parent
+        cls.repo_root = Path(__file__).resolve().parent.parent
         cls.lint_script = cls.repo_root / "tools" / "lint.sh"
 
     def _build_version_check_sandbox(

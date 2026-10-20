@@ -16,7 +16,7 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
+REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
 # Source common functions
 # shellcheck source=scripts/common-functions.sh
@@ -239,6 +239,63 @@ assert_false "deploy.sh guards no yes branch with handle_prompt" 'handle_prompt_
 assert_false "deploy.sh ends every bare handle_prompt call with || true" 'bare_handle_prompt_without_true'
 # shellcheck disable=SC2016
 assert_true "deploy.sh passes the failing status to error_handler" 'grep -qF "trap '"'"'error_handler \$LINENO \$?'"'"' ERR" "$DEPLOY_SH"'
+
+
+# 18. Test load_config with valid and missing config.env
+echo 'export CFG_VAR_1="ok"' > "${TMP_TEST_DIR}/config.env"
+assert_true "load_config succeeds with valid config.env" 'load_config "$TMP_TEST_DIR" "CFG_VAR_1"'
+assert_false "load_config fails when required var missing" 'load_config "$TMP_TEST_DIR" "MISSING_CFG_VAR" 2>/dev/null'
+assert_false "load_config fails when directory has no config.env" 'load_config "${TMP_TEST_DIR}/nonexistent" "CFG_VAR_1" 2>/dev/null'
+
+# 19. Test command_exists and retry_command
+assert_true "command_exists succeeds for bash" 'command_exists bash'
+assert_false "command_exists fails for nonexistent binary" 'command_exists nonexistent_binary_xyz_123'
+assert_true "retry_command succeeds on passing command" 'retry_command 2 0 true'
+assert_false "retry_command fails after max attempts" 'retry_command 2 0 false 2>/dev/null'
+
+# 20. Test gcloud_safe, terraform_safe, check_prerequisites, check_gcp_quotas, resource_exists, safe_delete
+export GCLOUD_CALL_LOG="${TMP_TEST_DIR}/gcloud_calls.log"
+: > "$GCLOUD_CALL_LOG"
+gcloud() {
+  echo "$*" >> "$GCLOUD_CALL_LOG"
+  if [[ "$*" == *"missing-res"* ]]; then return 1; fi
+  if [[ "${1:-}" == "org-policies" && "${2:-}" == "list-custom-constraints" ]]; then
+    echo "custom.myConstraint"
+    return 0
+  fi
+  return 0
+}
+terraform() { return 0; }
+export -f gcloud terraform
+export GCLOUD_RETRY_DELAY=0 TERRAFORM_RETRY_DELAY=0
+assert_true "gcloud_safe succeeds with mocked gcloud" 'gcloud_safe version >/dev/null 2>&1'
+assert_true "terraform_safe succeeds with mocked terraform" 'terraform_safe version >/dev/null 2>&1'
+assert_true "check_prerequisites succeeds with mocked gcloud and terraform" 'check_prerequisites >/dev/null 2>&1'
+assert_true "check_gcp_quotas succeeds with mocked gcloud" 'check_gcp_quotas "test-proj" >/dev/null 2>&1'
+for rtype in project org-policy custom-constraint storage-bucket iam-role; do
+  assert_true "resource_exists succeeds for ${rtype}" "resource_exists '${rtype}' 'custom.myConstraint'"
+  assert_true "safe_delete succeeds for existing ${rtype}" "safe_delete '${rtype}' 'custom.myConstraint' >/dev/null 2>&1"
+done
+assert_true "safe_delete records gcloud projects delete command" 'grep -q "projects delete custom.myConstraint --quiet" "$GCLOUD_CALL_LOG"'
+: > "$GCLOUD_CALL_LOG"
+assert_true "safe_delete skips deletion when resource does not exist" 'safe_delete "project" "missing-res" >/dev/null 2>&1'
+assert_false "safe_delete does not invoke projects delete for missing resource" 'grep -q "projects delete missing-res" "$GCLOUD_CALL_LOG"'
+assert_false "resource_exists fails for unknown type" 'resource_exists "invalid-type" "res" 2>/dev/null'
+
+# 21. Test wait_for_consistency, display_header, cleanup, promptUser, confirm_destructive_operation
+assert_true "wait_for_consistency succeeds with 0s delay" 'wait_for_consistency "op" 0 >/dev/null 2>&1'
+assert_true "display_header prints banner" 'display_header "Test" "Desc" >/dev/null 2>&1'
+assert_true "cleanup succeeds" 'cleanup >/dev/null 2>&1'
+PROMPT_MARKER="${TMP_TEST_DIR}/prompt_executed"
+rm -f "$PROMPT_MARKER"
+assert_true "promptUser returns 0 in NON_INTERACTIVE=true with y default" 'NON_INTERACTIVE=true PROMPT_DEFAULT_RESPONSE=y promptUser "Proceed?" "touch $PROMPT_MARKER" >/dev/null 2>&1'
+assert_true "promptUser executed command when response is y" '[[ -f "$PROMPT_MARKER" ]]'
+rm -f "$PROMPT_MARKER"
+assert_false "promptUser returns 1 in NON_INTERACTIVE=true with n default" 'NON_INTERACTIVE=true PROMPT_DEFAULT_RESPONSE=n promptUser "Proceed?" "touch $PROMPT_MARKER" >/dev/null 2>&1'
+assert_true "promptUser did not execute command when response is n" '[[ ! -f "$PROMPT_MARKER" ]]'
+assert_false "confirm_destructive_operation fails safe in NON_INTERACTIVE=true" 'NON_INTERACTIVE=true confirm_destructive_operation "Delete all" >/dev/null 2>&1'
+assert_true "confirm_destructive_operation succeeds when user types DELETE" 'NON_INTERACTIVE=false confirm_destructive_operation "Delete all" <<<"DELETE" >/dev/null 2>&1'
+assert_false "confirm_destructive_operation cancels when user types no" 'NON_INTERACTIVE=false confirm_destructive_operation "Delete all" <<<"no" >/dev/null 2>&1'
 
 echo ""
 echo "Summary: ${TEST_COUNT} shell unit tests run, ${FAIL_COUNT} failures."

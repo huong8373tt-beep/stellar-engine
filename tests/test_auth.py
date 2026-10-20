@@ -15,6 +15,7 @@
 import subprocess
 import unittest
 from unittest.mock import MagicMock
+from unittest.mock import call
 from unittest.mock import patch
 
 import auth
@@ -87,6 +88,42 @@ class TestAuth(unittest.TestCase):
         self.assertEqual(creds, mock_creds)
         mock_default.assert_called_with(
             scopes=["https://www.googleapis.com/auth/cloud-platform"]
+        )
+
+    @patch("subprocess.run")
+    @patch("auth.google.auth.default")
+    def test_get_credentials_triggers_gcloud_login_on_error(
+        self, mock_default, mock_run
+    ):
+        mock_creds = MagicMock()
+        mock_default.return_value = (mock_creds, "dummy-project")
+        mock_run.side_effect = [
+            subprocess.CalledProcessError(1, "gcloud"),
+            MagicMock(),
+            MagicMock(),
+        ]
+
+        creds = auth.get_credentials()
+
+        self.assertEqual(creds, mock_creds)
+        self.assertEqual(
+            mock_run.call_args_list[1:],
+            [
+                call(["gcloud", "auth", "login"]),
+                call(["gcloud", "auth", "application-default", "login"]),
+            ],
+        )
+
+    @patch("subprocess.run")
+    def test_force_reauthentication_runs_both_login_commands(self, mock_run):
+        auth.force_reauthentication()
+
+        self.assertEqual(
+            mock_run.call_args_list,
+            [
+                call(["gcloud", "auth", "login"]),
+                call(["gcloud", "auth", "application-default", "login"]),
+            ],
         )
 
 

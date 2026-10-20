@@ -15,7 +15,7 @@
 import pathlib
 import unittest
 
-_REPO_ROOT = pathlib.Path(__file__).resolve().parents[2]
+_REPO_ROOT = pathlib.Path(__file__).resolve().parents[1]
 _FEDRAMP_NET_DIR = _REPO_ROOT / "fast/stages-aw/2-networking-a-fedramp"
 _IL5_NET_DIR = _REPO_ROOT / "fast/stages-aw/2-networking-b-il5-ngfw"
 
@@ -49,9 +49,9 @@ class TestStage2Networking(unittest.TestCase):
                     encoding="utf-8"
                 )
                 self.assertIn(
-                    "local_network ="
-                    " "
-                    'time_sleep.peering_delay[each.key].triggers["local_network"]',
+                    "local_network = "
+                    "time_sleep.peering_delay[each.key]"
+                    '.triggers["local_network"]',
                     branch_tf,
                 )
                 self.assertNotIn(
@@ -64,13 +64,13 @@ class TestStage2Networking(unittest.TestCase):
         vars_tf = (_FEDRAMP_NET_DIR / "variables.tf").read_text(
             encoding="utf-8"
         )
-        self.assertIn("spot                      = var.nva_spot_vms", nva_tf)
-        self.assertIn(
-            'termination_action        = var.nva_spot_vms ? "STOP" : null',
+        self.assertRegex(nva_tf, r"spot\s*=\s*var\.nva_spot_vms")
+        self.assertRegex(
             nva_tf,
+            r'termination_action\s*=\s*var\.nva_spot_vms\s*\?\s*"STOP"\s*:\s*null',
         )
         self.assertIn('variable "nva_spot_vms"', vars_tf)
-        self.assertIn("default     = false", vars_tf)
+        self.assertRegex(vars_tf, r"default\s*=\s*false")
 
     def test_nva_and_ngfw_service_account_and_helper_hardening(self):
         nva_tf = (_FEDRAMP_NET_DIR / "nva.tf").read_text(encoding="utf-8")
@@ -85,9 +85,7 @@ class TestStage2Networking(unittest.TestCase):
         self.assertIn("-stdin", openssl_sh)
 
     def test_stage2_and_ato_documentation_coherence(self):
-        """Verify ATO baseline guidance (#232), Stage 2a TDD and regional docs
-        (#195), and firewall policy docs (#117).
-        """
+        """Verify ATO baseline guidance and Stage 2a/firewall docs."""
         ato_doc = (_REPO_ROOT / "docs/path-to-authorization.md").read_text(
             encoding="utf-8"
         )
@@ -122,9 +120,7 @@ class TestStage2Networking(unittest.TestCase):
             self.assertIn("gcloud compute firewall-rules list", bp_readme)
 
     def test_essential_contacts_spoke_iam_and_ngfw_secrets(self):
-        """Verify essential_contacts map support (#119), spoke_project_iam
-        (#120), and NGFW Secret Manager keys (#20).
-        """
+        """Verify essential_contacts, spoke_project_iam, and NGFW secrets."""
         for stage in [
             "0-bootstrap",
             "2-networking-a-fedramp",
@@ -135,8 +131,8 @@ class TestStage2Networking(unittest.TestCase):
                 _REPO_ROOT / f"fast/stages-aw/{stage}/variables.tf"
             ).read_text(encoding="utf-8")
             self.assertIn(
-                "can({ for k, v in tomap(var.essential_contacts) : k => "
-                "tolist(v) })",
+                "can({ for k, v in tomap(var.essential_contacts)"
+                " : k => tolist(v) })",
                 var_text,
             )
             self.assertIn("can(tostring(var.essential_contacts))", var_text)
@@ -145,8 +141,8 @@ class TestStage2Networking(unittest.TestCase):
             _REPO_ROOT / "fast/stages-aw/0-bootstrap/organization.tf"
         ).read_text(encoding="utf-8")
         self.assertIn(
-            "contacts     = var.bootstrap_user != null ? {} : "
-            "local.essential_contacts",
+            "contacts     = var.bootstrap_user != null"
+            " ? {} : local.essential_contacts",
             org_tf,
         )
         self.assertIn(
@@ -157,11 +153,11 @@ class TestStage2Networking(unittest.TestCase):
             branch_tf = (
                 _REPO_ROOT / f"fast/stages-aw/{stage}/branch-net-envs.tf"
             ).read_text(encoding="utf-8")
-            self.assertIn(
+            expected_lookup = (
                 "lookup(var.spoke_project_iam, lower(each.key), "
-                "lookup(var.spoke_project_iam, each.key, {}))",
-                branch_tf,
+                "lookup(var.spoke_project_iam, each.key, {}))"
             )
+            self.assertIn(expected_lookup, branch_tf)
             stage_vars = (
                 _REPO_ROOT / f"fast/stages-aw/{stage}/variables.tf"
             ).read_text(encoding="utf-8")

@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
+import tempfile
 import unittest
 
 import tfdoc
@@ -82,9 +84,6 @@ output "vpc_id" {
         )
 
     def test_parse_files_skips_symlinks(self):
-        import os
-        import tempfile
-
         with tempfile.TemporaryDirectory() as tmpdir:
             real_tf = os.path.join(tmpdir, "main.tf")
             with open(real_tf, "w", encoding="utf-8") as f:
@@ -96,6 +95,38 @@ output "vpc_id" {
             files = list(tfdoc.parse_files(tmpdir))
             self.assertEqual(len(files), 1)
             self.assertEqual(files[0].name, "main.tf")
+
+    def test_create_and_render_tfref_generates_expected_tables(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            vars_path = os.path.join(tmpdir, "variables.tf")
+            with open(vars_path, "w", encoding="utf-8") as f:
+                f.write(
+                    'variable "project_id" {\n'
+                    '  description = "Project ID."\n'
+                    "  type        = string\n"
+                    "}\n"
+                )
+            outs_path = os.path.join(tmpdir, "outputs.tf")
+            with open(outs_path, "w", encoding="utf-8") as f:
+                f.write(
+                    'output "id" {\n'
+                    '  description = "Output ID."\n'
+                    "  value       = var.project_id\n"
+                    "  sensitive   = true\n"
+                    "}\n"
+                )
+            doc = tfdoc.create_tfref(
+                tmpdir, files=False, show_extra=False, readme=""
+            )
+            rendered = tfdoc.render_tfref(
+                f"# Mod\n{tfdoc.MARK_BEGIN}\n{tfdoc.MARK_END}\n", doc.content
+            )
+            self.assertIn(
+                "| [project_id](variables.tf#L1) | Project ID."
+                " | <code>string</code> | ✓ |  |",
+                rendered,
+            )
+            self.assertIn("| [id](outputs.tf#L1) | Output ID. | ✓ |", rendered)
 
 
 if __name__ == "__main__":
