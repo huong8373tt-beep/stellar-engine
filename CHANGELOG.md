@@ -1,6 +1,13 @@
 # Changelog
 
 
+## [5.0.1](https://github.com/google/stellar-engine/compare/v5.0.0...v5.0.1) (2026-10-22)
+
+
+### Bug Fixes
+
+* **0-bootstrap:** use DENY condition on custom.kmsRotation so key destroy succeeds ([#284](https://github.com/google/stellar-engine/issues/284)) ([e107746](https://github.com/google/stellar-engine/commit/e107746e4fb6cbe4c8ce75f108984bf1279689d3))
+
 ## [5.0.0](https://github.com/google/stellar-engine/compare/v4.2.0...v5.0.0) (2026-10-22)
 
 
